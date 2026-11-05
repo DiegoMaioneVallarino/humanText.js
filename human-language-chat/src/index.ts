@@ -10,3 +10,5 @@ export type {
   Locale, ProfileName, TransformSettings, HumanTextOptions, ResolvedOptions,
   TextAnalysis, TransformChange, TransformResult,
 } from './core/types';
+
+export { getAllTerms, getCustomTerms, loadCustomTerms, saveCustomTerm, deleteCustomTerm, importCustomTerms, exportCustomTerms } from './lexicon/store';

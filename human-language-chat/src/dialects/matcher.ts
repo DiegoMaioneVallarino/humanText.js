@@ -1,4 +1,4 @@
-import { dialectLexicon } from './lexicon';
+import { getAllTerms } from '../lexicon/store';
 import type { DialectTerm } from './types';
 
 export interface LexicalMatch {
@@ -47,17 +47,17 @@ function contextIsCompatible(text: string, start: number, end: number, entry: Di
   return true;
 }
 
-const patterns = dialectLexicon.map((entry) => {
+function buildPatterns() { return getAllTerms().map((entry) => {
   const variants = [entry.form, ...(entry.variants ?? [])];
   return {
     entry,
     regex: new RegExp(`(?<![\\p{L}\\p{N}])(?:${variants.map(escapeRegex).sort((a, b) => b.length - a.length).join('|')})(?![\\p{L}\\p{N}])`, 'giu'),
   };
-});
+}); }
 
 export function findDialectMatches(text: string): LexicalMatch[] {
   const candidates: LexicalMatch[] = [];
-  for (const { entry, regex } of patterns) {
+  for (const { entry, regex } of buildPatterns()) {
     regex.lastIndex = 0;
     for (const match of text.matchAll(regex)) {
       const start = match.index;

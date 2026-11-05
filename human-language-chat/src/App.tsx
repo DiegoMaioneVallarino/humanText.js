@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react';
-import { HumanText, profileLabels, presets, dialectLexicon, regionNames } from './index';
+import { HumanText, profileLabels, presets, regionNames } from './index';
 import type { Locale, ProfileName, TransformSettings, DialectRegion } from './index';
 import './App.css';
+import LexiconManager from './lexicon/LexiconManager';
+import { getAllTerms, loadCustomTerms } from './lexicon/store';
 import logo from "./assets/logo.png";
-
 const demoText = 'Es fundamental considerar diferentes alternativas antes de tomar una decisión definitiva, ya que cada una presenta sus propias ventajas e inconvenientes. Sin embargo, es importante analizar la situación detenidamente.';
 
 const examples = [
@@ -55,15 +56,17 @@ export default function App() {
   const [seed, setSeed] = useState(4231);
   const [settings, setSettings] = useState<TransformSettings>({ ...presets.casual });
   const [copied, setCopied] = useState(false);
+  const [lexiconRevision, setLexiconRevision] = useState(0);
+  useState(() => { loadCustomTerms(); return true; });
   const [dictionaryQuery, setDictionaryQuery] = useState('');
   const [dictionaryRegion, setDictionaryRegion] = useState<DialectRegion | 'all'>('all');
 
   const result = useMemo(() => new HumanText({
     profile, locale, intensity, seed, settings, preserveMeaning: true,
-  }).transform(text), [text, profile, locale, intensity, seed, settings]);
+  }).transform(text), [text, profile, locale, intensity, seed, settings, lexiconRevision]);
 
   const dialect = result.dialectAnalysis;
-  const dictionaryItems = useMemo(() => dialectLexicon.filter((item) => {
+  const dictionaryItems = useMemo(() => getAllTerms().filter((item) => {
     const query = dictionaryQuery.trim().toLocaleLowerCase('es');
     return (dictionaryRegion === 'all' || item.region === dictionaryRegion)
       && (!query || [item.form, item.concept, item.meaning, ...(item.variants ?? [])].join(' ').toLocaleLowerCase('es').includes(query));
@@ -228,7 +231,7 @@ export default function App() {
           <p className="disclaimer">{dialect.disclaimer} Los puntajes son heurísticos, no probabilidades calibradas.</p>
         </section>
         <section className="control-card dictionary-panel" aria-label="Diccionario regional">
-          <div className="section-heading"><div><span className="section-kicker">05 / LÉXICO SEMÁNTICO</span><h2>Diccionario de regionalismos</h2></div><span className="small-meta">{dialectLexicon.length} entradas iniciales</span></div>
+          <div className="section-heading"><div><span className="section-kicker">05 / LÉXICO SEMÁNTICO</span><h2>Diccionario de regionalismos</h2></div><span className="small-meta">{getAllTerms().length} entradas totales</span></div>
           <div className="dictionary-filters">
             <input value={dictionaryQuery} onChange={(e) => setDictionaryQuery(e.target.value)} placeholder="Buscar palabra o significado" aria-label="Buscar en diccionario" />
             <select value={dictionaryRegion} onChange={(e) => setDictionaryRegion(e.target.value as DialectRegion | 'all')} aria-label="Filtrar región">
@@ -249,6 +252,7 @@ export default function App() {
           <p className="disclaimer">Diccionario de demostración, curado manualmente: no todas las palabras son exclusivas de una región. Se ampliará con acepciones y metadatos.</p>
         </section>
       </div>
+      <LexiconManager onUpdate={() => setLexiconRevision((n) => n + 1)} />
       <footer>HumanText.js · Motor experimental basado en reglas. No certifica autoría humana ni resultados frente a detectores de IA.</footer>
     </main>
   );

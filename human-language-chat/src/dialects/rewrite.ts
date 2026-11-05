@@ -1,5 +1,7 @@
 import { findDialectMatches } from './matcher';
+import type { LexicalMatch } from './matcher';
 import { preferredByRegion } from './lexicon';
+import { getCustomTerms } from '../lexicon/store';
 import type { DialectRegion, DialectRewriteResult, DialectRewriteChange } from './types';
 import type { RandomSource } from '../core/types';
 import { clamp01 } from '../utils/random';
@@ -18,7 +20,7 @@ function caseLike(value: string, original: string): string {
 }
 
 function adaptArticle(article: string, target: string): string {
-  const gender = genders[target];
+  const gender = getCustomTerms().find((entry) => entry.form === target)?.gender ?? genders[target];
   if (!gender || !article) return article;
   const lower = article.toLocaleLowerCase('es');
   const equivalent: Record<string, [string, string]> = {
@@ -29,20 +31,49 @@ function adaptArticle(article: string, target: string): string {
   return pair ? caseLike(pair[gender === 'm' ? 0 : 1], article) : article;
 }
 
+
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/** User-defined substitutions take priority over the curated legacy lexicon. */
+function directMatches(input: string, target: DialectRegion): Array<LexicalMatch & { directTarget: string }> {
+  const found: Array<LexicalMatch & { directTarget: string }> = [];
+  for (const entry of getCustomTerms()) {
+    if (entry.region !== target || !entry.replaceable) continue;
+    for (const source of entry.replaces ?? []) {
+      const value = source.trim();
+      if (!value) continue;
+      const pattern = new RegExp(`(?<![\\p{L}\\p{N}])${escapeRegex(value)}(?![\\p{L}\\p{N}])`, 'giu');
+      for (const match of input.matchAll(pattern)) {
+        found.push({ start: match.index, end: match.index + match[0].length, matched: match[0], entry, directTarget: entry.form });
+      }
+    }
+  }
+  return found.sort((a, b) => a.start - b.start || b.end - a.end);
+}
+
 /** Changes only curated meaning-equivalent lexical items; preserves unrecognized text. */
 export function rewriteDialect(input: string, target: DialectRegion, intensity = 1, rng?: RandomSource): DialectRewriteResult {
   const spans = protectedSpans(input);
-  const matches = findDialectMatches(input).filter((match) => !spans.some((span) => match.start < span.end && match.end > span.start));
+  const protectedMatch = (match: LexicalMatch) => spans.some((span) => match.start < span.end && match.end > span.start);
+  const direct = directMatches(input, target).filter((match) => !protectedMatch(match));
+  const matches: Array<LexicalMatch & { directTarget?: string }> = [];
+  // Direct substitutions win on overlap. Apply the same non-overlap rule to legacy matches.
+  for (const match of [...direct, ...findDialectMatches(input).filter((match) => !protectedMatch(match))]) {
+    if (!matches.some((item) => match.start < item.end && match.end > item.start)) matches.push(match);
+  }
+  matches.sort((a, b) => a.start - b.start);
   const changes: DialectRewriteChange[] = [];
   const probability = clamp01(intensity);
   let text = input;
   for (let i = matches.length - 1; i >= 0; i -= 1) {
-    const { entry, matched, start, end } = matches[i];
+    const { entry, matched, start, end, directTarget } = matches[i];
     if (!entry.replaceable || !probability || (rng && !rng.chance(probability))) continue;
     // Avoid edits that require complex agreement not modeled in the MVP.
-    const chosen = preferredByRegion[target][entry.concept];
+    const chosen = directTarget ?? getCustomTerms().find((term) => term.region === target && term.concept === entry.concept && term.replaceable && term.role === entry.role)?.form ?? preferredByRegion[target][entry.concept];
     if (!chosen || chosen.toLocaleLowerCase('es') === matched.toLocaleLowerCase('es')) continue;
-    if (entry.concept === 'address.friend' && target === 'es-CL') continue; // risk of inadvertently offensive terms
+    if (!directTarget && entry.concept === 'address.friend' && target === 'es-CL') continue; // risk of inadvertently offensive terms
     const replacement = caseLike(chosen, matched);
     let replacementStart = start;
     let replacementEnd = end;
@@ -57,8 +88,8 @@ export function rewriteDialect(input: string, target: DialectRegion, intensity =
         updated = adaptArticle(article[1], chosen) + article[2] + replacement;
       }
     }
-    const oldGender = entry.gender;
-    const newGender = genders[chosen];
+    const oldGender = directTarget ? undefined : entry.gender;
+    const newGender = getCustomTerms().find((term) => term.form === chosen)?.gender ?? genders[chosen];
     if (oldGender && newGender && oldGender !== newGender) {
       const following = /^(\s+)(remot[oa]|nuev[oa]|larg[oa]|dur[oa]|pesad[oa]|buen[oa]|mal[oa]|complicad[oa]|fij[oa])\b/iu.exec(text.slice(end));
       if (following) {

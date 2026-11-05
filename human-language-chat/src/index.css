@@ -13,3 +13,33 @@ button { cursor: pointer; }
 button:disabled { opacity: 0.45; cursor: default; }
 button:focus-visible, select:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px solid #c6a3fa; outline-offset: 2px; }
 ::selection { background: #865abb; color: white; }
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.brand-logo {
+  width: 77px;
+  height: 77px;
+  object-fit: contain;
+  display: block;
+}
+
+.brand-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.1;
+}
+
+.brand-title {
+  font-size: 1.25rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.brand-subtitle {
+  font-size: 0.82rem;
+  opacity: 0.72;
+}

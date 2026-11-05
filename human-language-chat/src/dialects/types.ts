@@ -1,6 +1,6 @@
 export type DialectRegion = 'es-MX' | 'es-CO' | 'es-AR' | 'es-CL' | 'es-ES';
-export type LexicalRole = 'sustantivo' | 'vocativo' | 'muletilla' | 'expresión' | 'construcción';
-export type Register = 'estándar' | 'coloquial' | 'jerga';
+export type LexicalRole = 'sustantivo' | 'verbo' | 'adjetivo' | 'adverbio' | 'vocativo' | 'muletilla' | 'expresión' | 'construcción';
+export type Register = 'estándar' | 'coloquial' | 'jerga' | 'culto' | 'formal' | 'vulgar';
 
 export interface DialectTerm {
   id: string;
@@ -16,10 +16,16 @@ export interface DialectTerm {
   replaceable?: boolean;
   gender?: 'm' | 'f';
   variants?: readonly string[];
+  /** Direct source expressions that this term can replace, without a semantic concept. */
+  replaces?: string[];
   /** If true, score as weak evidence outside a contextual pattern. */
   ambiguous?: boolean;
   note?: string;
   source?: string;
+  vulgarity?: number;
+  politeness?: number;
+  tags?: string[];
+  example?: string;
 }
 
 export interface DialectCue {
